@@ -40,6 +40,7 @@ cflatobjs += lib/arm64/stack.o
 cflatobjs += lib/arm64/processor.o
 cflatobjs += lib/arm64/spinlock.o
 cflatobjs += lib/arm64/gic-v3-its.o lib/arm64/gic-v3-its-cmd.o
+cflatobjs += lib/arm64/stage2_mmu.o
 
 ifeq ($(CONFIG_EFI),y)
 cflatobjs += lib/acpi.o
