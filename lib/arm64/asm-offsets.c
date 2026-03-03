@@ -8,6 +8,7 @@
 #include <libcflat.h>
 #include <kbuild.h>
 #include <asm/ptrace.h>
+#include <asm/guest.h>
 
 int main(void)
 {
@@ -29,6 +30,18 @@ int main(void)
 	/* FP and LR (16 bytes) go on the frame above pt_regs */
 	DEFINE(S_FP, sizeof(struct pt_regs));
 	DEFINE(S_FRAME_SIZE, (sizeof(struct pt_regs) + 16));
+
+	OFFSET(GUEST_X_OFFSET, guest, x);
+	OFFSET(GUEST_ELR_OFFSET, guest, elr_el2);
+	OFFSET(GUEST_SPSR_OFFSET, guest, spsr_el2);
+	OFFSET(GUEST_HCR_OFFSET, guest, hcr_el2);
+	OFFSET(GUEST_VTTBR_OFFSET, guest, vttbr_el2);
+	OFFSET(GUEST_SCTLR_OFFSET, guest, sctlr_el1);
+	OFFSET(GUEST_SP_EL1_OFFSET, guest, sp_el1);
+	OFFSET(GUEST_ESR_OFFSET, guest, esr_el2);
+	OFFSET(GUEST_FAR_OFFSET, guest, far_el2);
+	OFFSET(GUEST_HPFAR_OFFSET, guest, hpfar_el2);
+	OFFSET(GUEST_EXIT_CODE_OFFSET, guest, exit_code);
 
 	return 0;
 }

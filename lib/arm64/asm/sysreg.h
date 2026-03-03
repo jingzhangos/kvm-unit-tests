@@ -118,6 +118,10 @@ asm(
 #define SCTLR_EL1_TCF0_SHIFT	38
 #define SCTLR_EL1_TCF0_MASK	GENMASK_ULL(39, 38)
 
+#define HCR_EL2_VM		_BITULL(0)
+#define HCR_EL2_FMO		_BITULL(3)
+#define HCR_EL2_IMO		_BITULL(4)
+#define HCR_EL2_AMO		_BITULL(5)
 #define HCR_EL2_TGE		_BITULL(27)
 #define HCR_EL2_RW		_BITULL(31)
 #define HCR_EL2_E2H		_BITULL(34)
@@ -131,6 +135,8 @@ asm(
 #define SYS_HFGRTR2_EL2		sys_reg(3, 4, 3, 1, 2)
 #define SYS_HFGWTR2_EL2		sys_reg(3, 4, 3, 1, 3)
 #define SYS_HFGITR2_EL2		sys_reg(3, 4, 3, 1, 7)
+
+#define SYS_SCTLR_EL1		sys_reg(3, 5, 1, 0, 0)
 
 #define INIT_SCTLR_EL1_MMU_OFF	\
 			(SCTLR_EL1_ITD | SCTLR_EL1_SED | SCTLR_EL1_EOS | \
