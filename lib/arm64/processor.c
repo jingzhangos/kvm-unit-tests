@@ -48,7 +48,7 @@ static const char *ec_names[EC_MAX] = {
 	[ESR_EL1_EC_IABT_EL0]		= "IABT_EL0",
 	[ESR_EL1_EC_IABT_EL1]		= "IABT_EL1",
 	[ESR_EL1_EC_PC_ALIGN]		= "PC_ALIGN",
-	[ESR_EL1_EC_DABT_EL0]		= "DABT_EL0",
+	[ESR_ELx_EC_DABT_LOW]		= "DABT_EL0",
 	[ESR_EL1_EC_DABT_EL1]		= "DABT_EL1",
 	[ESR_EL1_EC_SP_ALIGN]		= "SP_ALIGN",
 	[ESR_EL1_EC_FP_EXC32]		= "FP_EXC32",
@@ -82,7 +82,7 @@ void show_regs(struct pt_regs *regs)
 
 bool get_far(unsigned int esr, unsigned long *far)
 {
-	unsigned int ec = esr >> ESR_EL1_EC_SHIFT;
+	unsigned int ec = esr >> ESR_ELx_EC_SHIFT;
 
 	asm volatile("mrs %0, far_el1": "=r" (*far));
 
@@ -90,7 +90,7 @@ bool get_far(unsigned int esr, unsigned long *far)
 	case ESR_EL1_EC_IABT_EL0:
 	case ESR_EL1_EC_IABT_EL1:
 	case ESR_EL1_EC_PC_ALIGN:
-	case ESR_EL1_EC_DABT_EL0:
+	case ESR_ELx_EC_DABT_LOW:
 	case ESR_EL1_EC_DABT_EL1:
 	case ESR_EL1_EC_WATCHPT_EL0:
 	case ESR_EL1_EC_WATCHPT_EL1:
@@ -108,7 +108,7 @@ static void bad_exception(enum vector v, struct pt_regs *regs,
 {
 	unsigned long far;
 	bool far_valid = get_far(esr, &far);
-	unsigned int ec = esr >> ESR_EL1_EC_SHIFT;
+	unsigned int ec = esr >> ESR_ELx_EC_SHIFT;
 	uintptr_t text = (uintptr_t)&_text;
 
 	printf("Load address: %" PRIxPTR "\n", text);
@@ -158,7 +158,7 @@ void default_vector_sync_handler(enum vector v, struct pt_regs *regs,
 				 unsigned int esr)
 {
 	struct thread_info *ti = thread_info_sp(regs->sp);
-	unsigned int ec = esr >> ESR_EL1_EC_SHIFT;
+	unsigned int ec = esr >> ESR_ELx_EC_SHIFT;
 
 	if (ti->flags & TIF_USER_MODE) {
 		if (ec < EC_MAX && ti->exception_handlers[v][ec]) {
