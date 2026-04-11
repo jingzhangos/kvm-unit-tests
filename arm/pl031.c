@@ -162,7 +162,7 @@ static int check_rtc_irq(void)
 	writel(before + seconds_to_wait, &pl031->mr);
 
 #ifdef __aarch64__
-	install_irq_handler(EL1H_IRQ, irq_handler);
+	install_irq_handler(ELxH_IRQ, irq_handler);
 #else
 	install_exception_handler(EXCPTN_IRQ, irq_handler);
 #endif

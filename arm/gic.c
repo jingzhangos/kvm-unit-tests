@@ -180,7 +180,7 @@ static void setup_irq(irq_handler_fn handler)
 #ifdef __arm__
 	install_exception_handler(EXCPTN_IRQ, handler);
 #else
-	install_irq_handler(EL1H_IRQ, handler);
+	install_irq_handler(ELxH_IRQ, handler);
 #endif
 	local_irq_enable();
 }

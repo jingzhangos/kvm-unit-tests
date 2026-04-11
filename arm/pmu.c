@@ -968,7 +968,7 @@ static void test_overflow_interrupt(bool overflow_at_64bits)
 		return;
 
 	gic_enable_defaults();
-	install_irq_handler(EL1H_IRQ, irq_handler);
+	install_irq_handler(ELxH_IRQ, irq_handler);
 	local_irq_enable();
 	gic_enable_irq(23);
 

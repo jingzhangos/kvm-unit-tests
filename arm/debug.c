@@ -272,7 +272,7 @@ static noinline void test_hw_bp(bool migrate)
 		return;
 	}
 
-	install_exception_handler(EL1H_SYNC, ESR_EC_HW_BP_CURRENT, hw_bp_handler);
+	install_exception_handler(ELxH_SYNC, ESR_EC_HW_BP_CURRENT, hw_bp_handler);
 
 	reset_debug_state();
 
@@ -324,7 +324,7 @@ static noinline void test_wp(bool migrate)
 		return;
 	}
 
-	install_exception_handler(EL1H_SYNC, ESR_EC_WP_CURRENT, wp_handler);
+	install_exception_handler(ELxH_SYNC, ESR_EC_WP_CURRENT, wp_handler);
 
 	reset_debug_state();
 
@@ -365,7 +365,7 @@ static noinline void test_ss(bool migrate)
 	extern unsigned char ss_start;
 	uint32_t mdscr;
 
-	install_exception_handler(EL1H_SYNC, ESR_EC_SSTEP_CURRENT, ss_handler);
+	install_exception_handler(ELxH_SYNC, ESR_EC_SSTEP_CURRENT, ss_handler);
 
 	reset_debug_state();
 

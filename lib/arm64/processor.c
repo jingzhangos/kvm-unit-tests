@@ -198,10 +198,10 @@ void default_vector_irq_handler(enum vector v, struct pt_regs *regs,
 
 void vector_handlers_default_init(vector_fn *handlers)
 {
-	handlers[EL1H_SYNC]	= default_vector_sync_handler;
-	handlers[EL1H_IRQ]	= default_vector_irq_handler;
-	handlers[EL0_SYNC_64]	= default_vector_sync_handler;
-	handlers[EL0_IRQ_64]	= default_vector_irq_handler;
+	handlers[ELxH_SYNC]	= default_vector_sync_handler;
+	handlers[ELxH_IRQ]	= default_vector_irq_handler;
+	handlers[ELx_LOW_SYNC_64]	= default_vector_sync_handler;
+	handlers[ELx_LOW_IRQ_64]	= default_vector_irq_handler;
 }
 
 /* Needed to compile with -Wmissing-prototypes */

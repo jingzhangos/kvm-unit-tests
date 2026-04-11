@@ -305,7 +305,7 @@ static enum vector check_vector_prep(void)
 	unsigned long daif;
 
 	if (is_user())
-		return EL0_SYNC_64;
+		return ELx_LOW_SYNC_64;
 
 	asm volatile("mrs %0, daif" : "=r" (daif) ::);
 	expected_regs.pstate = daif;
@@ -313,7 +313,7 @@ static enum vector check_vector_prep(void)
 		expected_regs.pstate |= PSR_MODE_EL1h;
 	else
 		expected_regs.pstate |= PSR_MODE_EL2h;
-	return EL1H_SYNC;
+	return ELxH_SYNC;
 }
 
 static void unknown_handler(struct pt_regs *regs, unsigned int esr __unused)
@@ -400,7 +400,7 @@ static void check_vectors(void *arg __unused)
 #ifdef __arm__
 		install_exception_handler(EXCPTN_UND, user_psci_system_off);
 #else
-		install_exception_handler(EL0_SYNC_64, ESR_EL1_EC_UNKNOWN,
+		install_exception_handler(ELx_LOW_SYNC_64, ESR_EL1_EC_UNKNOWN,
 					  user_psci_system_off);
 #endif
 	} else {

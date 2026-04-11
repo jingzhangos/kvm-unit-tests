@@ -52,7 +52,7 @@ static void gic_irq_handler(struct pt_regs *regs)
 
 static void gic_secondary_entry(void *data)
 {
-	install_irq_handler(EL1H_IRQ, gic_irq_handler);
+	install_irq_handler(ELxH_IRQ, gic_irq_handler);
 	gic_enable_defaults();
 	local_irq_enable();
 	irq_ready = true;
@@ -212,7 +212,7 @@ static void lpi_exec(void)
 static bool timer_prep(void)
 {
 	gic_enable_defaults();
-	install_irq_handler(EL1H_IRQ, gic_irq_handler);
+	install_irq_handler(ELxH_IRQ, gic_irq_handler);
 	local_irq_enable();
 
 	if (current_level() == CurrentEL_EL1)
