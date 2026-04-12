@@ -137,6 +137,7 @@ asm(
 #define SYS_HFGITR2_EL2		sys_reg(3, 4, 3, 1, 7)
 
 #define SYS_SCTLR_EL1		sys_reg(3, 5, 1, 0, 0)
+#define SYS_VBAR_EL1		sys_reg(3, 5, 12, 0, 0)
 
 #define INIT_SCTLR_EL1_MMU_OFF	\
 			(SCTLR_EL1_ITD | SCTLR_EL1_SED | SCTLR_EL1_EOS | \

@@ -37,11 +37,13 @@ int main(void)
 	OFFSET(GUEST_HCR_OFFSET, guest, hcr_el2);
 	OFFSET(GUEST_VTTBR_OFFSET, guest, vttbr_el2);
 	OFFSET(GUEST_SCTLR_OFFSET, guest, sctlr_el1);
+	OFFSET(GUEST_VBAR_OFFSET, guest, vbar_el1);
 	OFFSET(GUEST_SP_EL1_OFFSET, guest, sp_el1);
 	OFFSET(GUEST_ESR_OFFSET, guest, esr_el2);
 	OFFSET(GUEST_FAR_OFFSET, guest, far_el2);
 	OFFSET(GUEST_HPFAR_OFFSET, guest, hpfar_el2);
 	OFFSET(GUEST_EXIT_CODE_OFFSET, guest, exit_code);
+	OFFSET(GUEST_TPIDR_EL1_OFFSET, guest, tpidr_el1);
 
 	return 0;
 }

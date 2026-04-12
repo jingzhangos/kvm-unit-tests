@@ -29,6 +29,26 @@ enum guest_handler_result {
 struct guest;
 typedef enum guest_handler_result (*guest_handler_t)(struct guest *guest);
 
+/*
+ * Guest EL1 Exception Frame (pushed to guest stack by asm stub)
+ * We use a simplified frame: x0-x30, elr, spsr. size = 33*8
+ */
+struct guest_el1_regs {
+	unsigned long regs[31];
+	unsigned long elr;
+	unsigned long spsr;
+};
+
+typedef void (*guest_el1_handler_t)(struct guest_el1_regs *regs, unsigned int esr);
+
+/*
+ * Guest Context Structure
+ * This will be pointed to by TPIDR_EL1 while the guest is running.
+ */
+struct guest_context {
+	guest_el1_handler_t handlers[VECTOR_MAX];
+};
+
 struct guest {
 	/* General Purpose Registers */
 	unsigned long x[31]; /* x0..x30 */
@@ -42,15 +62,18 @@ struct guest {
 	unsigned long vttbr_el2;
 	unsigned long sctlr_el1;
 	unsigned long sp_el1;
+	unsigned long vbar_el1;
 
 	/* Exit Information */
 	unsigned long esr_el2;
 	unsigned long far_el2;
 	unsigned long hpfar_el2;
 	unsigned long exit_code;
+	unsigned long tpidr_el1;
 
 	/* Exception Handlers in EL2 */
 	guest_handler_t handlers[VECTOR_MAX];
+	struct guest_context *guest_context;
 
 	struct s2_mmu *s2mmu;
 };
@@ -61,5 +84,8 @@ void guest_run(struct guest *guest);
 
 unsigned long guest_c_exception_handler(struct guest *guest, unsigned long vector_offset);
 void guest_install_handler(struct guest *guest, enum vector v, guest_handler_t handler);
+
+void guest_el1_c_handler(struct guest_el1_regs *regs, unsigned int vector);
+void guest_install_el1_handler(struct guest *guest, enum vector v, guest_el1_handler_t handler);
 
 #endif /* _ASMARM64_GUEST_H_ */

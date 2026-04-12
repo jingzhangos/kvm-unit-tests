@@ -36,9 +36,45 @@ unsigned long guest_c_exception_handler(struct guest *guest, unsigned long vecto
 	return 1;
 }
 
+/* --- EL1 (Guest-Internal) Vector Handling --- */
+
+void guest_install_el1_handler(struct guest *guest, enum vector v, guest_el1_handler_t handler)
+{
+	if (guest && guest->guest_context && v < VECTOR_MAX)
+		guest->guest_context->handlers[v] = handler;
+}
+
+void guest_el1_c_handler(struct guest_el1_regs *regs, unsigned int vector)
+{
+	struct guest_context *ctx = (struct guest_context *)read_sysreg(tpidr_el1);
+	unsigned int esr = read_sysreg(esr_el1);
+
+	if (ctx && vector < VECTOR_MAX && ctx->handlers[vector]) {
+		ctx->handlers[vector](regs, esr);
+	} else {
+		printf("Guest: Unhandled Exception Vector %d, ESR=0x%x\n", vector, esr);
+		asm volatile("hvc #0xFFFF");
+	}
+}
+
+extern void guest_el1_vectors(void);
+
 static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 {
 	struct guest *guest = calloc(1, sizeof(struct guest));
+	struct guest_context *guest_ctx;
+	unsigned long guest_ctx_pa;
+
+	/* Allocate the internal context table */
+	guest_ctx = (void *)alloc_page();
+	memset(guest_ctx, 0, PAGE_SIZE);
+	guest->guest_context = guest_ctx;
+
+	guest_ctx_pa = virt_to_phys(guest_ctx);
+	if (s2_ctx)
+		s2mmu_map(s2_ctx, guest_ctx_pa, guest_ctx_pa, PAGE_SIZE, S2_MAP_RW);
+
+	guest->tpidr_el1 = guest_ctx_pa;
 
 	guest->elr_el2 = (unsigned long)entry_point;
 	guest->spsr_el2 = 0x3C5; /* M=EL1h, DAIF=Masked */
@@ -56,6 +92,7 @@ static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 	guest->sctlr_el1 &= ~(SCTLR_EL1_M | SCTLR_EL1_C);
 	guest->sctlr_el1 |= SCTLR_EL1_I;
 
+	guest->vbar_el1 = (unsigned long)guest_el1_vectors;
 	guest->s2mmu = s2_ctx;
 
 	return guest;
@@ -109,6 +146,8 @@ void guest_destroy(struct guest *guest)
 {
 	s2mmu_disable(guest->s2mmu);
 	s2mmu_destroy(guest->s2mmu);
+	if (guest->guest_context)
+		free_page(guest->guest_context);
 	free(guest);
 }
 

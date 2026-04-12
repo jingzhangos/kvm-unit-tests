@@ -34,8 +34,12 @@ guest_run:
 	msr	vttbr_el2, x1
 	ldr	x1, [x0, #GUEST_SCTLR_OFFSET]
 	msr_s	SYS_SCTLR_EL1, x1
+	ldr	x1, [x0, #GUEST_VBAR_OFFSET]
+	msr_s	SYS_VBAR_EL1, x1
 	ldr	x1, [x0, #GUEST_SP_EL1_OFFSET]
 	msr	sp_el1, x1
+	ldr	x1, [x0, #GUEST_TPIDR_EL1_OFFSET]
+	msr	tpidr_el1, x1
 
 	/* Load Guest GPRs */
 	ldp	x1, x2, [x0, #8]
@@ -125,6 +129,8 @@ guest_common_exit:
 	str	x1, [x0, #GUEST_HPFAR_OFFSET]
 	mrs	x1, sp_el1
 	str	x1, [x0, #GUEST_SP_EL1_OFFSET]
+	mrs_s	x1, SYS_VBAR_EL1
+	str	x1, [x0, #GUEST_VBAR_OFFSET]
 
 	/* x29 contains vector offset from entry */
 	mov	x1, x29
@@ -167,4 +173,76 @@ guest_resume_guest:
 	ldp	x27, x28, [x0, #216]
 	ldp	x29, x30, [x0, #232]
 	ldr	x0, [x0, #0]
+	eret
+
+/* EL1 Vector Table */
+.macro guest_el1_vector, vector_num
+	.align 7
+	stp     x29, x30, [sp, #-16]!
+	mov	x29, \vector_num
+	b       guest_el1_common
+.endm
+
+.align 11
+.global guest_el1_vectors
+guest_el1_vectors:
+	.skip 0x200
+
+	guest_el1_vector #4	/* Sync */
+	guest_el1_vector #5	/* IRQ */
+	guest_el1_vector #6	/* FIQ */
+	guest_el1_vector #7	/* SError */
+
+	.align 11
+
+guest_el1_common:
+	sub	sp, sp, #264
+	stp	x0, x1, [sp, #0]
+	stp	x2, x3, [sp, #16]
+	stp	x4, x5, [sp, #32]
+	stp	x6, x7, [sp, #48]
+	stp	x8, x9, [sp, #64]
+	stp	x10, x11, [sp, #80]
+	stp	x12, x13, [sp, #96]
+	stp	x14, x15, [sp, #112]
+	stp	x16, x17, [sp, #128]
+	stp	x18, x19, [sp, #144]
+	stp	x20, x21, [sp, #160]
+	stp	x22, x23, [sp, #176]
+	stp	x24, x25, [sp, #192]
+	stp	x26, x27, [sp, #208]
+	stp	x28, x30, [sp, #224]
+
+	mrs	x0, elr_el1
+	str	x0, [sp, #248]
+	mrs	x0, spsr_el1
+	str	x0, [sp, #256]
+
+	mov	x0, sp
+	mov	x1, x29
+	bl	guest_el1_c_handler
+
+	ldr	x0, [sp, #248]
+	msr	elr_el1, x0
+	ldr	x0, [sp, #256]
+	msr	spsr_el1, x0
+
+	ldp	x0, x1, [sp, #0]
+	ldp	x2, x3, [sp, #16]
+	ldp	x4, x5, [sp, #32]
+	ldp	x6, x7, [sp, #48]
+	ldp	x8, x9, [sp, #64]
+	ldp	x10, x11, [sp, #80]
+	ldp	x12, x13, [sp, #96]
+	ldp	x14, x15, [sp, #112]
+	ldp	x16, x17, [sp, #128]
+	ldp	x18, x19, [sp, #144]
+	ldp	x20, x21, [sp, #160]
+	ldp	x22, x23, [sp, #176]
+	ldp	x24, x25, [sp, #192]
+	ldp	x26, x27, [sp, #208]
+	ldp	x28, x30, [sp, #224]
+
+	add	sp, sp, #264
+	ldp	x29, x30, [sp], #16
 	eret
