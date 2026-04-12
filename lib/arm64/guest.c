@@ -12,6 +12,30 @@
 #include <alloc_page.h>
 #include <alloc.h>
 
+/*
+ * C-Entry for Exception Handling
+ * Returns 0 to Resume Guest, 1 to Exit to Host Caller
+ */
+unsigned long guest_c_exception_handler(struct guest *guest, unsigned long vector_offset)
+{
+	enum vector vector = (enum vector)guest->exit_code;
+
+	/* Save Trap Info */
+	guest->esr_el2 = read_sysreg(esr_el2);
+	guest->far_el2 = read_sysreg(far_el2);
+	guest->hpfar_el2 = read_sysreg(hpfar_el2);
+
+	/* Invoke Handler if registered */
+	if (guest->handlers[vector]) {
+		if (guest->handlers[vector](guest) == GUEST_ACTION_RESUME) {
+			return 0; /* ASM stub will restore and ERET */
+		}
+	}
+
+	/* Default: Exit to caller */
+	return 1;
+}
+
 static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 {
 	struct guest *guest = calloc(1, sizeof(struct guest));
@@ -86,4 +110,10 @@ void guest_destroy(struct guest *guest)
 	s2mmu_disable(guest->s2mmu);
 	s2mmu_destroy(guest->s2mmu);
 	free(guest);
+}
+
+void guest_install_handler(struct guest *guest, enum vector v, guest_handler_t handler)
+{
+	if (v < VECTOR_MAX)
+		guest->handlers[v] = handler;
 }

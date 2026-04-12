@@ -16,6 +16,19 @@
 /* Guest stack size */
 #define GUEST_STACK_SIZE		SZ_64K
 
+/*
+ * Result from Handler:
+ * RESUME: Keep guest running (ERET immediately)
+ * EXIT:   Return to Host C caller
+ */
+enum guest_handler_result {
+	GUEST_ACTION_RESUME,
+	GUEST_ACTION_EXIT
+};
+
+struct guest;
+typedef enum guest_handler_result (*guest_handler_t)(struct guest *guest);
+
 struct guest {
 	/* General Purpose Registers */
 	unsigned long x[31]; /* x0..x30 */
@@ -36,11 +49,17 @@ struct guest {
 	unsigned long hpfar_el2;
 	unsigned long exit_code;
 
+	/* Exception Handlers in EL2 */
+	guest_handler_t handlers[VECTOR_MAX];
+
 	struct s2_mmu *s2mmu;
 };
 
 struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule granule);
 void guest_destroy(struct guest *guest);
 void guest_run(struct guest *guest);
+
+unsigned long guest_c_exception_handler(struct guest *guest, unsigned long vector_offset);
+void guest_install_handler(struct guest *guest, enum vector v, guest_handler_t handler);
 
 #endif /* _ASMARM64_GUEST_H_ */
