@@ -32,6 +32,7 @@ void gicv3_set_redist_base(size_t stride)
 
 void gicv3_enable_defaults(void)
 {
+	size_t stride = is_gicv4() ? SZ_64K * 4 : SZ_64K * 2;
 	void *dist = gicv3_dist_base();
 	void *sgi_base;
 	unsigned int i;
@@ -51,7 +52,7 @@ void gicv3_enable_defaults(void)
 		writel(~0, dist + GICD_IGROUPR + i);
 
 	if (!gicv3_redist_base())
-		gicv3_set_redist_base(SZ_64K * 2);
+		gicv3_set_redist_base(stride);
 	sgi_base = gicv3_sgi_base();
 
 	writel(~0, sgi_base + GICR_IGROUPR0);
@@ -168,7 +169,7 @@ void gicv3_lpi_alloc_tables(void)
 {
 	unsigned long n = SZ_64K >> PAGE_SHIFT;
 	unsigned long order = fls(n);
-	u64 prop_val;
+	u64 prop_val, vprop_val = 0;
 	int cpu;
 
 	gicv3_data.lpi_prop = alloc_pages(order);
@@ -176,8 +177,13 @@ void gicv3_lpi_alloc_tables(void)
 	/* ID bits = 13, ie. up to 14b LPI INTID */
 	prop_val = (u64)(virt_to_phys(gicv3_data.lpi_prop)) | 13;
 
+	if (is_gicv4()) {
+		gicv3_data.vlpi_prop = alloc_pages(order);
+		vprop_val = (u64)(virt_to_phys(gicv3_data.vlpi_prop)) | 13;
+	}
+
 	for_each_online_cpu(cpu) {
-		u64 pend_val;
+		u64 pend_val, vpend_val;
 		void *ptr;
 
 		assert_msg(gicv3_data.redist_base[cpu], "Redistributor for cpu%d not initialized. "
@@ -186,9 +192,18 @@ void gicv3_lpi_alloc_tables(void)
 
 		writeq(prop_val, ptr + GICR_PROPBASER);
 
+		if (is_gicv4())
+			writeq(vprop_val, ptr + GICR_VPROPBASER);
+
 		gicv3_data.lpi_pend[cpu] = alloc_pages(order);
 		pend_val = (u64)(virt_to_phys(gicv3_data.lpi_pend[cpu]));
 		writeq(pend_val, ptr + GICR_PENDBASER);
+
+		if (is_gicv4()) {
+			gicv3_data.vlpi_pend[cpu] = alloc_pages(order);
+			vpend_val = (u64)(virt_to_phys(gicv3_data.vlpi_pend[cpu]));
+			writeq(vpend_val, ptr + GICR_VPENDBASER);
+		}
 	}
 }
 

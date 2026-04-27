@@ -20,6 +20,7 @@ struct its_typer {
 	bool pta;
 	bool phys_lpi;
 	bool virt_lpi;
+	bool virt_sgi;
 };
 
 struct its_baser {
@@ -49,6 +50,7 @@ struct its_data {
 	void *base;
 	struct its_typer typer;
 	struct its_baser device_baser;
+	struct its_baser vpe_baser;
 	struct its_baser coll_baser;
 	struct its_cmd_block *cmd_base;
 	struct its_cmd_block *cmd_write;
@@ -82,6 +84,7 @@ extern struct its_data its_data;
 #define GITS_TYPER_CIDBITS		GENMASK_ULL(35, 32)
 #define GITS_TYPER_CIDBITS_SHIFT	32
 #define GITS_TYPER_CIL			BIT(36)
+#define GITS_TYPER_VSGI			BIT(39)
 
 #define GITS_CTLR_ENABLE		(1U << 0)
 
@@ -104,6 +107,7 @@ extern struct its_data its_data;
 #define GITS_BASER_PHYS_ADDR_MASK	0xFFFFFFFFF000
 #define GITS_BASER_TYPE_NONE		0
 #define GITS_BASER_TYPE_DEVICE		1
+#define GITS_BASER_TYPE_VPE		2
 #define GITS_BASER_TYPE_COLLECTION	4
 
 /*
@@ -240,5 +244,7 @@ extern void __its_send_sync(struct its_collection *col, bool verbose);
 
 extern struct its_device *its_get_device(u32 id);
 extern struct its_collection *its_get_collection(u32 id);
+
+#define is_gicv4()	(its_data.typer.virt_lpi)
 
 #endif /* _ASMARM64_GIC_V3_ITS_H_ */

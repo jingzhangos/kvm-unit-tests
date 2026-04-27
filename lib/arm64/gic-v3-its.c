@@ -23,6 +23,7 @@ void its_parse_typer(void)
 
 	t->virt_lpi = typer & GITS_TYPER_VLPIS;
 	t->phys_lpi = typer & GITS_TYPER_PLPIS;
+	t->virt_sgi = typer & GITS_TYPER_VSGI;
 }
 
 int its_baser_lookup(int type, struct its_baser *baser)
@@ -92,6 +93,11 @@ void its_init(void)
 
 	its_baser_alloc_table(&its_data.device_baser, SZ_64K);
 	its_baser_alloc_table(&its_data.coll_baser, SZ_64K);
+
+	if (is_gicv4()) {
+		assert(!its_baser_lookup(GITS_BASER_TYPE_VPE, &its_data.vpe_baser));
+		its_baser_alloc_table(&its_data.vpe_baser, SZ_64K);
+	}
 
 	its_cmd_queue_init();
 }

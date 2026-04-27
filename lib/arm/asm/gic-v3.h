@@ -44,6 +44,8 @@
 
 #define GICR_PROPBASER			0x0070
 #define GICR_PENDBASER			0x0078
+#define GICR_VPROPBASER			(2 * SZ_64K + 0x0070)
+#define GICR_VPENDBASER			(2 * SZ_64K + 0x0078)
 #define GICR_CTLR			GICD_CTLR
 #define GICR_CTLR_ENABLE_LPIS		(1UL << 0)
 
@@ -82,6 +84,8 @@ struct gicv3_data {
 	void *redist_base[NR_CPUS];
 	u8 *lpi_prop;
 	void *lpi_pend[NR_CPUS];
+	u8 *vlpi_prop;
+	void *vlpi_pend[NR_CPUS];
 	unsigned int irq_nr;
 };
 extern struct gicv3_data gicv3_data;
@@ -89,6 +93,7 @@ extern struct gicv3_data gicv3_data;
 #define gicv3_dist_base()		(gicv3_data.dist_base)
 #define gicv3_redist_base()		(gicv3_data.redist_base[smp_processor_id()])
 #define gicv3_sgi_base()		(gicv3_data.redist_base[smp_processor_id()] + SZ_64K)
+#define gicv3_vlpi_base()		(gicv3_data.redist_base[smp_processor_id()] + 2 * SZ_64K)
 
 extern int gicv3_init(void);
 extern void gicv3_enable_defaults(void);
