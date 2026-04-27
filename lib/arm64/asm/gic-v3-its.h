@@ -126,6 +126,75 @@ struct its_cmd_block {
 	u64 raw_cmd[4];
 };
 
+struct its_cmd_desc {
+	union {
+		struct {
+			struct its_device *dev;
+			u32 event_id;
+		} its_inv_cmd;
+
+		struct {
+			struct its_device *dev;
+			u32 event_id;
+		} its_int_cmd;
+
+		struct {
+			struct its_device *dev;
+			bool valid;
+		} its_mapd_cmd;
+
+		struct {
+			struct its_collection *col;
+			bool valid;
+		} its_mapc_cmd;
+
+		struct {
+			struct its_device *dev;
+			u32 phys_id;
+			u32 event_id;
+			u32 col_id;
+		} its_mapti_cmd;
+
+		struct {
+			struct its_device *dev;
+			struct its_collection *col;
+			u32 event_id;
+		} its_movi_cmd;
+
+		struct {
+			struct its_device *dev;
+			u32 event_id;
+		} its_discard_cmd;
+
+		struct {
+			struct its_device *dev;
+			u32 event_id;
+		} its_clear_cmd;
+
+		struct {
+			struct its_collection *col;
+		} its_invall_cmd;
+
+		struct {
+			struct its_collection *col;
+		} its_sync_cmd;
+	};
+	bool verbose;
+};
+
+typedef void (*its_cmd_builder_t)(struct its_cmd_block *, struct its_cmd_desc *);
+
+extern void its_encode_cmd(struct its_cmd_block *cmd, u8 cmd_nr);
+extern void its_encode_devid(struct its_cmd_block *cmd, u32 devid);
+extern void its_encode_event_id(struct its_cmd_block *cmd, u32 id);
+extern void its_encode_valid(struct its_cmd_block *cmd, int valid);
+extern void its_encode_vpeid(struct its_cmd_block *cmd, u16 vpeid);
+extern void its_encode_target(struct its_cmd_block *cmd, u64 target_addr);
+extern void its_encode_vpt_addr(struct its_cmd_block *cmd, u64 vpt_pa);
+extern void its_encode_vpt_size(struct its_cmd_block *cmd, u8 vpt_size);
+extern void its_encode_virt_id(struct its_cmd_block *cmd, u32 virt_id);
+extern void its_encode_db_phys_id(struct its_cmd_block *cmd, u32 db_phys_id);
+
 extern void its_parse_typer(void);
 extern void its_init(void);
 extern int its_baser_lookup(int i, struct its_baser *baser);
@@ -133,6 +202,7 @@ extern void its_enable_defaults(void);
 extern struct its_device *its_create_device(u32 dev_id, int nr_ites);
 extern struct its_collection *its_create_collection(u16 col_id, u32 target_pe);
 
+extern void its_send_single_command(its_cmd_builder_t builder, struct its_cmd_desc *desc);
 extern void __its_send_mapd(struct its_device *dev, int valid, bool verbose);
 extern void __its_send_mapc(struct its_collection *col, int valid, bool verbose);
 extern void __its_send_mapti(struct its_device *dev, u32 irq_id, u32 event_id,

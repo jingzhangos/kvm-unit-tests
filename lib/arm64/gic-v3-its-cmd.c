@@ -25,65 +25,6 @@ static const char * const its_cmd_string[] = {
 	[GITS_CMD_SYNC]		= "SYNC",
 };
 
-struct its_cmd_desc {
-	union {
-		struct {
-			struct its_device *dev;
-			u32 event_id;
-		} its_inv_cmd;
-
-		struct {
-			struct its_device *dev;
-			u32 event_id;
-		} its_int_cmd;
-
-		struct {
-			struct its_device *dev;
-			bool valid;
-		} its_mapd_cmd;
-
-		struct {
-			struct its_collection *col;
-			bool valid;
-		} its_mapc_cmd;
-
-		struct {
-			struct its_device *dev;
-			u32 phys_id;
-			u32 event_id;
-			u32 col_id;
-		} its_mapti_cmd;
-
-		struct {
-			struct its_device *dev;
-			struct its_collection *col;
-			u32 event_id;
-		} its_movi_cmd;
-
-		struct {
-			struct its_device *dev;
-			u32 event_id;
-		} its_discard_cmd;
-
-		struct {
-			struct its_device *dev;
-			u32 event_id;
-		} its_clear_cmd;
-
-		struct {
-			struct its_collection *col;
-		} its_invall_cmd;
-
-		struct {
-			struct its_collection *col;
-		} its_sync_cmd;
-	};
-	bool verbose;
-};
-
-typedef void (*its_cmd_builder_t)(struct its_cmd_block *,
-				  struct its_cmd_desc *);
-
 /* ITS COMMANDS */
 
 static void its_mask_encode(u64 *raw_cmd, u64 val, int h, int l)
@@ -93,17 +34,17 @@ static void its_mask_encode(u64 *raw_cmd, u64 val, int h, int l)
 	*raw_cmd |= (val << l) & mask;
 }
 
-static void its_encode_cmd(struct its_cmd_block *cmd, u8 cmd_nr)
+void its_encode_cmd(struct its_cmd_block *cmd, u8 cmd_nr)
 {
 	its_mask_encode(&cmd->raw_cmd[0], cmd_nr, 7, 0);
 }
 
-static void its_encode_devid(struct its_cmd_block *cmd, u32 devid)
+void its_encode_devid(struct its_cmd_block *cmd, u32 devid)
 {
 	its_mask_encode(&cmd->raw_cmd[0], devid, 63, 32);
 }
 
-static void its_encode_event_id(struct its_cmd_block *cmd, u32 id)
+void its_encode_event_id(struct its_cmd_block *cmd, u32 id)
 {
 	its_mask_encode(&cmd->raw_cmd[1], id, 31, 0);
 }
@@ -123,12 +64,12 @@ static void its_encode_itt(struct its_cmd_block *cmd, u64 itt_addr)
 	its_mask_encode(&cmd->raw_cmd[2], itt_addr >> 8, 50, 8);
 }
 
-static void its_encode_valid(struct its_cmd_block *cmd, int valid)
+void its_encode_valid(struct its_cmd_block *cmd, int valid)
 {
 	its_mask_encode(&cmd->raw_cmd[2], !!valid, 63, 63);
 }
 
-static void its_encode_target(struct its_cmd_block *cmd, u64 target_addr)
+void its_encode_target(struct its_cmd_block *cmd, u64 target_addr)
 {
 	its_mask_encode(&cmd->raw_cmd[2], target_addr >> 16, 50, 16);
 }
@@ -136,6 +77,31 @@ static void its_encode_target(struct its_cmd_block *cmd, u64 target_addr)
 static void its_encode_collection(struct its_cmd_block *cmd, u16 col)
 {
 	its_mask_encode(&cmd->raw_cmd[2], col, 15, 0);
+}
+
+void its_encode_vpeid(struct its_cmd_block *cmd, u16 vpeid)
+{
+	its_mask_encode(&cmd->raw_cmd[1], vpeid, 47, 32);
+}
+
+void its_encode_vpt_addr(struct its_cmd_block *cmd, u64 vpt_pa)
+{
+	its_mask_encode(&cmd->raw_cmd[3], vpt_pa >> 16, 50, 16);
+}
+
+void its_encode_vpt_size(struct its_cmd_block *cmd, u8 vpt_size)
+{
+	its_mask_encode(&cmd->raw_cmd[3], vpt_size, 4, 0);
+}
+
+void its_encode_virt_id(struct its_cmd_block *cmd, u32 virt_id)
+{
+	its_mask_encode(&cmd->raw_cmd[2], virt_id, 31, 0);
+}
+
+void its_encode_db_phys_id(struct its_cmd_block *cmd, u32 db_phys_id)
+{
+	its_mask_encode(&cmd->raw_cmd[2], db_phys_id, 63, 32);
 }
 
 static inline void its_fixup_cmd(struct its_cmd_block *cmd)
@@ -195,7 +161,7 @@ static void its_wait_for_range_completion(struct its_cmd_block *from,
 	}
 }
 
-static void its_send_single_command(its_cmd_builder_t builder,
+void its_send_single_command(its_cmd_builder_t builder,
 				    struct its_cmd_desc *desc)
 {
 	struct its_cmd_block *cmd, *next_cmd;
