@@ -16,6 +16,14 @@
 /* Guest stack size */
 #define GUEST_STACK_SIZE		SZ_64K
 
+/* ICH_VMCR_EL2 bit definition */
+#define ICH_VMCR_PMR_SHIFT	24
+#define ICH_VMCR_PMR_MASK	(0xffUL << ICH_VMCR_PMR_SHIFT)
+#define ICH_VMCR_ENG0_SHIFT	0
+#define ICH_VMCR_ENG0_MASK	(1 << ICH_VMCR_ENG0_SHIFT)
+#define ICH_VMCR_ENG1_SHIFT	1
+#define ICH_VMCR_ENG1_MASK	(1 << ICH_VMCR_ENG1_SHIFT)
+
 /*
  * Result from Handler:
  * RESUME: Keep guest running (ERET immediately)
@@ -70,6 +78,9 @@ struct guest {
 	unsigned long hpfar_el2;
 	unsigned long exit_code;
 	unsigned long tpidr_el1;
+
+	/* GIC Registers */
+	unsigned long ich_vmcr_el2;
 
 	/* Exception Handlers in EL2 */
 	guest_handler_t handlers[VECTOR_MAX];

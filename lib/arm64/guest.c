@@ -92,6 +92,9 @@ static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 	guest->sctlr_el1 &= ~(SCTLR_EL1_M | SCTLR_EL1_C);
 	guest->sctlr_el1 |= SCTLR_EL1_I;
 
+	guest->ich_vmcr_el2 = read_sysreg(ich_vmcr_el2);
+	guest->ich_vmcr_el2 |= (0xFFUL << ICH_VMCR_PMR_SHIFT) | (1UL << ICH_VMCR_ENG1_SHIFT);
+
 	guest->vbar_el1 = (unsigned long)guest_el1_vectors;
 	guest->s2mmu = s2_ctx;
 

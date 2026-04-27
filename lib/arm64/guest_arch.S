@@ -23,6 +23,19 @@ guest_run:
 	/* Cache Guest Pointer in TPIDR_EL2 */
 	msr	tpidr_el2, x0
 
+	/* Configure ICC_SRE_EL2 to allow EL1 access to SysRegs */
+	/* Bit 3 (Enable) = 1, Bit 0 (SRE) = 1 */
+	mrs	x1, icc_sre_el2
+	orr	x1, x1, #1
+	orr	x1, x1, #(1 << 3)
+	msr	icc_sre_el2, x1
+	isb
+
+	/* Enable virtual CPU interface */
+	mrs	x1, ich_hcr_el2
+	orr	x1, x1, #1
+	msr	ich_hcr_el2, x1
+
 	/* Load Guest System Registers */
 	ldr	x1, [x0, #GUEST_ELR_OFFSET]
 	msr	elr_el2, x1
@@ -40,6 +53,8 @@ guest_run:
 	msr	sp_el1, x1
 	ldr	x1, [x0, #GUEST_TPIDR_EL1_OFFSET]
 	msr	tpidr_el1, x1
+	ldr	x1, [x0, #GUEST_ICH_VMCR_EL2_OFFSET]
+	msr	ich_vmcr_el2, x1
 
 	/* Load Guest GPRs */
 	ldp	x1, x2, [x0, #8]
@@ -131,6 +146,8 @@ guest_common_exit:
 	str	x1, [x0, #GUEST_SP_EL1_OFFSET]
 	mrs_s	x1, SYS_VBAR_EL1
 	str	x1, [x0, #GUEST_VBAR_OFFSET]
+	mrs	x1, ich_vmcr_el2
+	str	x1, [x0, #GUEST_ICH_VMCR_EL2_OFFSET]
 
 	/* x29 contains vector offset from entry */
 	mov	x1, x29

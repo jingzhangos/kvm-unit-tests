@@ -44,6 +44,7 @@ int main(void)
 	OFFSET(GUEST_HPFAR_OFFSET, guest, hpfar_el2);
 	OFFSET(GUEST_EXIT_CODE_OFFSET, guest, exit_code);
 	OFFSET(GUEST_TPIDR_EL1_OFFSET, guest, tpidr_el1);
+	OFFSET(GUEST_ICH_VMCR_EL2_OFFSET, guest, ich_vmcr_el2);
 
 	return 0;
 }
