@@ -8,6 +8,58 @@
 #include <asm/gic-v4.h>
 #include <alloc_page.h>
 
+struct gicv4_vpe *gicv4_alloc_vpe(u16 vpe_id)
+{
+	struct gicv4_vpe *vpe;
+
+	vpe = malloc(sizeof(struct gicv4_vpe));
+	if (!vpe) {
+		printf("Error: VPE allocation failed!\n");
+		return vpe;
+	}
+
+	vpe->vpt_page = gicv3_data.vlpi_pend[smp_processor_id()];
+	vpe->vpe_id = vpe_id;
+	vpe->resident = false;
+	return vpe;
+}
+
+void gicv4_free_vpe(struct gicv4_vpe *vpe)
+{
+	free(vpe);
+}
+
+void gicv4_schedule_vpe(struct gicv4_vpe *vpe)
+{
+	u64 val;
+	void *rdist_base = gicv3_redist_base();
+
+
+	val = readq(rdist_base + GICR_VPENDBASER);
+	val |= GICR_VPENDBASER_VALID;
+
+	writeq(val, rdist_base + GICR_VPENDBASER);
+
+	while (readq(rdist_base + GICR_VPENDBASER) & GICR_VPENDBASER_DIRTY)
+		cpu_relax();
+
+	vpe->resident = true;
+}
+
+void gicv4_deschedule_vpe(struct gicv4_vpe *vpe)
+{
+	void *rdist_base = gicv3_redist_base();
+
+	/* To deschedule, we can simply clear the Valid bit */
+	u64 val = readq(rdist_base + GICR_VPENDBASER);
+	val &= ~GICR_VPENDBASER_VALID;
+
+	writeq(val, rdist_base + GICR_VPENDBASER);
+	while (readq(rdist_base + GICR_VPENDBASER) & GICR_VPENDBASER_DIRTY)
+		cpu_relax();
+	vpe->resident = false;
+}
+
 static void its_build_vmapp_cmd(struct its_cmd_block *cmd, struct its_cmd_desc *desc)
 {
 	struct its_cmd_desc_v4 *d = (struct its_cmd_desc_v4 *)desc;
