@@ -69,6 +69,7 @@ tests += $(TEST_DIR)/debug.$(exe)
 tests += $(TEST_DIR)/fpu.$(exe)
 tests += $(TEST_DIR)/mte.$(exe)
 tests += $(TEST_DIR)/stage2-mmu-test.$(exe)
+tests += $(TEST_DIR)/vlpi-stress.$(exe)
 
 include $(SRCDIR)/$(TEST_DIR)/Makefile.common
 
