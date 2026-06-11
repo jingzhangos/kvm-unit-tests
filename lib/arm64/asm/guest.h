@@ -10,6 +10,8 @@
 #include <libcflat.h>
 #include <asm/processor.h>
 #include <asm/stage2_mmu.h>
+#include <asm/stage1_mmu.h>
+
 
 #define HCR_GUEST_FLAGS (HCR_EL2_VM | HCR_EL2_FMO | HCR_EL2_IMO | \
 			 HCR_EL2_AMO | HCR_EL2_RW | HCR_EL2_E2H)
@@ -87,7 +89,9 @@ struct guest {
 	struct guest_context *guest_context;
 
 	struct s2_mmu *s2mmu;
+	struct s1_mmu *s1mmu;
 };
+
 
 struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule granule);
 void guest_destroy(struct guest *guest);

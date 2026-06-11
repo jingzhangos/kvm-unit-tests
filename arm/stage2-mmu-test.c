@@ -74,6 +74,11 @@ int main(int argc, char **argv)
 	report_prefix_push("stage2-mmu");
 
 	guest = guest_create(smp_processor_id(), guest_code, S2_PAGE_4K);
+	if (!guest) {
+		report(false, "Failed to create guest");
+		return report_summary();
+	}
+
 
 	/* Map host code: IPA(VA) -> PA */
 	/* We use the host VA as the Guest IPA because guest stage 1 is disabled. */

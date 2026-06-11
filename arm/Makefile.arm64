@@ -41,6 +41,7 @@ cflatobjs += lib/arm64/processor.o
 cflatobjs += lib/arm64/spinlock.o
 cflatobjs += lib/arm64/gic-v3-its.o lib/arm64/gic-v3-its-cmd.o
 cflatobjs += lib/arm64/stage2_mmu.o
+cflatobjs += lib/arm64/stage1_mmu.o
 cflatobjs += lib/arm64/guest.o
 cflatobjs += lib/arm64/guest_arch.o
 cflatobjs += lib/arm64/gic-v4.o
@@ -69,8 +70,10 @@ tests += $(TEST_DIR)/debug.$(exe)
 tests += $(TEST_DIR)/fpu.$(exe)
 tests += $(TEST_DIR)/mte.$(exe)
 tests += $(TEST_DIR)/stage2-mmu-test.$(exe)
+tests += $(TEST_DIR)/stage1-mmu-test.$(exe)
 tests += $(TEST_DIR)/vlpi-stress.$(exe)
 tests += $(TEST_DIR)/gic-v4-test.$(exe)
+
 
 include $(SRCDIR)/$(TEST_DIR)/Makefile.common
 

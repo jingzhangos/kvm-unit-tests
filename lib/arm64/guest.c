@@ -59,7 +59,7 @@ void guest_el1_c_handler(struct guest_el1_regs *regs, unsigned int vector)
 
 extern void guest_el1_vectors(void);
 
-static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
+static struct guest *__guest_create(struct s2_mmu *s2_ctx, struct s1_mmu *s1_ctx, void *entry_point)
 {
 	struct guest *guest = calloc(1, sizeof(struct guest));
 	struct guest_context *guest_ctx;
@@ -73,6 +73,9 @@ static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 	guest_ctx_pa = virt_to_phys(guest_ctx);
 	if (s2_ctx)
 		s2mmu_map(s2_ctx, guest_ctx_pa, guest_ctx_pa, PAGE_SIZE, S2_MAP_RW);
+	if (s1_ctx)
+		s1mmu_map(s1_ctx, guest_ctx_pa, guest_ctx_pa, PAGE_SIZE, S1_MAP_RW);
+
 
 	guest->tpidr_el1 = guest_ctx_pa;
 
@@ -97,9 +100,16 @@ static struct guest *__guest_create(struct s2_mmu *s2_ctx, void *entry_point)
 
 	guest->vbar_el1 = (unsigned long)guest_el1_vectors;
 	guest->s2mmu = s2_ctx;
+	guest->s1mmu = s1_ctx;
+	if (s1_ctx) {
+		guest->x[0] = virt_to_phys(s1_ctx->pgd);
+		guest->x[1] = s1_ctx->granule;
+	}
+
 
 	return guest;
 }
+
 
 struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule granule)
 {
@@ -107,8 +117,19 @@ struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule g
 	unsigned long *stack_page;
 	struct guest *guest;
 	struct s2_mmu *ctx;
+	struct s1_mmu *s1mmu;
 
 	ctx = s2mmu_init(vmid, granule, true);
+	if (!ctx)
+		return NULL;
+
+	s1mmu = s1mmu_init(ctx, S1_GRANULE_4K);
+	if (!s1mmu) {
+		s2mmu_destroy(ctx);
+		return NULL;
+	}
+
+
 	/*
 	 * Map the Host's code segment Identity Mapped (IPA=PA).
 	 * To be safe, we map a large chunk (e.g., 2MB) around the function
@@ -117,6 +138,8 @@ struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule g
 	guest_pa = virt_to_phys((void *)guest_func);
 	code_base = guest_pa & ~(SZ_2M - 1);
 	s2mmu_map(ctx, code_base, code_base, SZ_2M, S2_MAP_RW);
+	s1mmu_map(s1mmu, code_base, code_base, SZ_2M, S1_MAP_RW);
+
 
 	/*
 	 * Map Stack
@@ -126,12 +149,14 @@ struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule g
 	stack_pa = virt_to_phys(stack_page);
 	/* Identity Map it (IPA = PA) */
 	s2mmu_map(ctx, stack_pa, stack_pa, GUEST_STACK_SIZE, S2_MAP_RW);
+	s1mmu_map(s1mmu, stack_pa, stack_pa, GUEST_STACK_SIZE, S1_MAP_RW);
+
 
 	s2mmu_enable(ctx);
 
 	/* Create Guest */
 	/* Entry point is the PA of the function (Identity Mapped) */
-	guest = __guest_create(ctx, (void *)guest_pa);
+	guest = __guest_create(ctx, s1mmu, (void *)guest_pa);
 
 	/*
 	 * Setup Guest Stack Pointer
@@ -141,18 +166,25 @@ struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule g
 
 	/* Map UART identity mapped, printf() available to guest */
 	s2mmu_map(ctx, 0x09000000, 0x09000000, PAGE_SIZE, S2_MAP_DEVICE);
+	s1mmu_map(s1mmu, 0x09000000, 0x09000000, PAGE_SIZE, S1_MAP_DEVICE);
+
+
 
 	return guest;
 }
+
 
 void guest_destroy(struct guest *guest)
 {
 	s2mmu_disable(guest->s2mmu);
 	s2mmu_destroy(guest->s2mmu);
+	if (guest->s1mmu)
+		s1mmu_destroy(guest->s1mmu);
 	if (guest->guest_context)
 		free_page(guest->guest_context);
 	free(guest);
 }
+
 
 void guest_install_handler(struct guest *guest, enum vector v, guest_handler_t handler)
 {

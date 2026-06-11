@@ -180,6 +180,11 @@ static void receiver_guest_loop(void)
 	unsigned long data_base;
 
 	guest = guest_create(smp_processor_id(), guest_receiver, S2_PAGE_4K);
+	if (!guest) {
+		report_fail("Receiver: failed to create guest");
+		return;
+	}
+
 
 	/* Identity map the shared variable */
 	data_base = virt_to_phys((void *)&test_data) & PAGE_MASK;
@@ -209,6 +214,11 @@ static void sender_guest_loop(void)
 	int cpu = smp_processor_id();
 
 	guest = guest_create(cpu, guest_sender, S2_PAGE_4K);
+	if (!guest) {
+		report_fail("Sender: failed to create guest");
+		return;
+	}
+
 
 	/* Identity map the shared variable */
 	data_base = virt_to_phys((void *)&test_data) & PAGE_MASK;
