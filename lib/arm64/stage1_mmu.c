@@ -74,7 +74,7 @@ struct s1_mmu *s1mmu_init(struct s2_mmu *s2mmu, enum s1_granule granule)
 
 	// Map the root page table in Stage 2 so the CPU walk can access it
 	unsigned long pgd_pa = virt_to_phys(mmu->pgd);
-	s2mmu_map(s2mmu, pgd_pa, pgd_pa, mmu->page_size, S2_MAP_RW);
+	s2mmu_map(s2mmu, pgd_pa, pgd_pa, MAX(mmu->page_size, (unsigned long)PAGE_SIZE), S2_MAP_RW);
 
 	return mmu;
 }
@@ -93,18 +93,25 @@ static void s1mmu_free_tables(struct s1_mmu *mmu, unsigned long *table, int leve
 			}
 		}
 	}
-	unsigned long table_pa = virt_to_phys(table);
-	s2mmu_unmap(mmu->s2mmu, table_pa, mmu->page_size);
-
-	free_pages(table);
+	if (mmu->page_size >= PAGE_SIZE)
+		free_pages(table);
 }
 
 
 void s1mmu_destroy(struct s1_mmu *mmu)
 {
-	if (mmu->pgd) {
-		s1mmu_free_tables(mmu, mmu->pgd, mmu->root_level);
+	struct s1_page_pool *curr = mmu->pool;
+
+	while (curr) {
+		struct s1_page_pool *next = curr->next;
+
+		free_pages(curr->page);
+		free(curr);
+		curr = next;
 	}
+
+	if (mmu->pgd)
+		free_pages(mmu->pgd);
 	free(mmu);
 }
 
@@ -125,19 +132,50 @@ static unsigned long *s1mmu_get_pte(struct s1_mmu *mmu, unsigned long *table, un
 	if (!alloc)
 		return NULL;
 
-	if (mmu->page_size > PAGE_SIZE)
+	if (mmu->page_size >= PAGE_SIZE) {
 		order = __builtin_ctz(mmu->page_size / PAGE_SIZE);
+		next_table = (unsigned long *)alloc_pages(order);
+		if (!next_table)
+			return NULL;
+		memset(next_table, 0, mmu->page_size);
 
-	next_table = (unsigned long *)alloc_pages(order);
-	if (!next_table)
-		return NULL;
-	memset(next_table, 0, mmu->page_size);
+		unsigned long next_pa = virt_to_phys(next_table);
+		s2mmu_map(mmu->s2mmu, next_pa, next_pa, mmu->page_size, S2_MAP_RW);
+
+		struct s1_page_pool *node = malloc(sizeof(*node));
+		if (node) {
+			node->page = next_table;
+			node->order = order;
+			node->next = mmu->pool;
+			mmu->pool = node;
+		}
+	} else {
+		/* Sub-allocate from host PAGE_SIZE pages to conserve memory and reduce TLBIs */
+		if (!mmu->cur_pool_page || mmu->cur_pool_offset + mmu->page_size > PAGE_SIZE) {
+			void *page = alloc_pages(0);
+			if (!page)
+				return NULL;
+
+			unsigned long page_pa = virt_to_phys(page);
+			s2mmu_map(mmu->s2mmu, page_pa, page_pa, PAGE_SIZE, S2_MAP_RW);
+
+			struct s1_page_pool *node = malloc(sizeof(*node));
+			if (node) {
+				node->page = page;
+				node->order = 0;
+				node->next = mmu->pool;
+				mmu->pool = node;
+			}
+			mmu->cur_pool_page = page;
+			mmu->cur_pool_offset = 0;
+		}
+
+		next_table = (unsigned long *)((uintptr_t)mmu->cur_pool_page + mmu->cur_pool_offset);
+		mmu->cur_pool_offset += mmu->page_size;
+		memset(next_table, 0, mmu->page_size);
+	}
 
 	unsigned long next_pa = virt_to_phys(next_table);
-
-	// Map the new table page in Stage 2 so the hardware page table walker can read it
-	s2mmu_map(mmu->s2mmu, next_pa, next_pa, mmu->page_size, S2_MAP_RW);
-
 	table[idx] = next_pa | S1_PTE_TABLE_BIT | S1_PTE_VALID;
 	return next_table;
 }
@@ -201,10 +239,15 @@ int s1mmu_map(struct s1_mmu *mmu, unsigned long va, unsigned long ipa,
 
 		/* Level 3 (Page Mapping) */
 		if (level == 3) {
-			unsigned long idx = (start_va >> mmu->page_shift) & level_mask;
-			table[idx] = (cur_ipa & ~(mmu->page_size - 1)) | flags | S1_PTE_TABLE_BIT | S1_PTE_VALID;
-			start_va += mmu->page_size;
-			cur_ipa += mmu->page_size;
+			while (start_va < end_va) {
+				unsigned long idx = (start_va >> mmu->page_shift) & level_mask;
+
+				table[idx] = (cur_ipa & ~(mmu->page_size - 1)) | flags | S1_PTE_TABLE_BIT | S1_PTE_VALID;
+				start_va += mmu->page_size;
+				cur_ipa += mmu->page_size;
+				if (idx == level_mask)
+					break;
+			}
 		}
 
 next_chunk:

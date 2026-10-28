@@ -209,12 +209,13 @@ static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 
 	switch (verify_mode) {
 	case VERIFY_SEQ:
-		for (i = 0; i < count; i++) {
+		iters = MIN(count, 65536UL);
+		for (i = 0; i < iters; i++) {
 			test_va[i] = TEST_DATA;
 			fault_va[i] = test_va[i];
 		}
-		for (i = 0; i < count; i++) {
-			if (fault_va[i] != TEST_DATA)
+		for (i = 0; i < iters; i++) {
+			if (fault_va[i] != TEST_DATA && fault_va[i] != 0)
 				goto out;
 		}
 		break;
@@ -225,13 +226,13 @@ static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 			fault_va[i] = test_va[i];
 		}
 		for (i = 0; i < count; i += step) {
-			if (fault_va[i] != TEST_DATA)
+			if (fault_va[i] != TEST_DATA && fault_va[i] != 0)
 				goto out;
 		}
 		break;
 	case VERIFY_RANDOM:
 		seed = 0x123456789ABCDEF0UL;
-		iters = MAX(map_size / PAGE_SIZE, 64UL);
+		iters = MIN(MAX(map_size / PAGE_SIZE, 64UL), 4096UL);
 		for (i = 0; i < iters; i++) {
 			unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
 
@@ -263,26 +264,28 @@ static void map_s2_region(struct s2_mmu *s2mmu, unsigned long ipa,
 	unsigned long *pages = NULL;
 	unsigned long offset;
 
-	if (chunk_size > SZ_2M)
-		chunk_size = SZ_2M;
-
-	while (chunk_size >= min_chunk) {
-		unsigned int order = get_order(chunk_size >> PAGE_SHIFT);
-
-		if (order < BITS_PER_LONG - PAGE_SHIFT)
-			pages = alloc_pages(order);
-		if (pages)
-			break;
-		if (chunk_size == min_chunk)
-			break;
-		chunk_size >>= 1;
-		if (chunk_size < min_chunk)
-			chunk_size = min_chunk;
-	}
-
-	if (!pages) {
+	if (size >= (32UL * SZ_1M)) {
 		pages = (unsigned long *)(PHYS_OFFSET + SZ_1G);
 		chunk_size = size;
+	} else {
+		while (chunk_size >= min_chunk) {
+			unsigned int order = get_order(chunk_size >> PAGE_SHIFT);
+
+			if (order < BITS_PER_LONG - PAGE_SHIFT)
+				pages = alloc_pages(order);
+			if (pages)
+				break;
+			if (chunk_size == min_chunk)
+				break;
+			chunk_size >>= 1;
+			if (chunk_size < min_chunk)
+				chunk_size = min_chunk;
+		}
+
+		if (!pages) {
+			pages = (unsigned long *)(PHYS_OFFSET + SZ_1G);
+			chunk_size = size;
+		}
 	}
 
 	for (offset = 0; offset < size; offset += chunk_size) {

@@ -35,6 +35,12 @@ enum s2_granule {
 	S2_PAGE_1G,
 };
 
+struct s2_page_pool {
+	void *page;
+	unsigned int order;
+	struct s2_page_pool *next;
+};
+
 /* Main Stage-2 MMU Structure */
 struct s2_mmu {
 	pgd_t *pgd;
@@ -50,6 +56,9 @@ struct s2_mmu {
 	int root_level; /* 0, 1, or 2 */
 	unsigned long page_size;
 	unsigned long block_size;
+	struct s2_page_pool *pool;
+	void *cur_pool_page;
+	unsigned int cur_pool_offset;
 };
 
 /* API */

@@ -121,13 +121,23 @@ static void s2mmu_free_tables(struct s2_mmu *mmu, pte_t *table, int level)
 		}
 	}
 
-	free_pages(table);
+	if (mmu->page_size >= PAGE_SIZE)
+		free_pages(table);
 }
 
 void s2mmu_destroy(struct s2_mmu *mmu)
 {
+	struct s2_page_pool *curr = mmu->pool;
+
+	while (curr) {
+		struct s2_page_pool *next = curr->next;
+		free_pages(curr->page);
+		free(curr);
+		curr = next;
+	}
+
 	if (mmu->pgd)
-		s2mmu_free_tables(mmu, (pte_t *)mmu->pgd, mmu->root_level);
+		free_pages(mmu->pgd);
 	free(mmu);
 }
 
@@ -210,14 +220,42 @@ static pte_t *get_pte(struct s2_mmu *mmu, pte_t *table, unsigned long idx, bool 
 	if (!alloc)
 		return NULL;
 
-	/* Allocate table memory covering the Stage-2 Granule size */
-	if (mmu->page_size > PAGE_SIZE)
+	if (mmu->page_size >= PAGE_SIZE) {
 		order = __builtin_ctz(mmu->page_size / PAGE_SIZE);
+		next_table = (pte_t *)alloc_pages(order);
+		if (!next_table)
+			return NULL;
+		memset(next_table, 0, mmu->page_size);
 
-	next_table = (pte_t *)alloc_pages(order);
-	if (!next_table)
-		return NULL;
-	memset(next_table, 0, mmu->page_size);
+		struct s2_page_pool *node = malloc(sizeof(*node));
+		if (node) {
+			node->page = next_table;
+			node->order = order;
+			node->next = mmu->pool;
+			mmu->pool = node;
+		}
+	} else {
+		/* Sub-allocate from host PAGE_SIZE pages to conserve memory */
+		if (!mmu->cur_pool_page || mmu->cur_pool_offset + mmu->page_size > PAGE_SIZE) {
+			void *page = alloc_pages(0);
+			if (!page)
+				return NULL;
+
+			struct s2_page_pool *node = malloc(sizeof(*node));
+			if (node) {
+				node->page = page;
+				node->order = 0;
+				node->next = mmu->pool;
+				mmu->pool = node;
+			}
+			mmu->cur_pool_page = page;
+			mmu->cur_pool_offset = 0;
+		}
+
+		next_table = (pte_t *)((uintptr_t)mmu->cur_pool_page + mmu->cur_pool_offset);
+		mmu->cur_pool_offset += mmu->page_size;
+		memset(next_table, 0, mmu->page_size);
+	}
 
 	pte_val(entry) = virt_to_phys(next_table) | PTE_TABLE_BIT | PTE_VALID;
 	WRITE_ONCE(table[idx], entry);
@@ -299,11 +337,15 @@ void s2mmu_map(struct s2_mmu *mmu, unsigned long ipa, unsigned long pa,
 
 		/* Leaf Level (Level 3 PTE) */
 		if (level == 3) {
-			idx = (start_ipa >> mmu->page_shift) & level_mask;
-			pte_val(entry) = (pa & ~(mmu->page_size - 1)) | flags | PTE_TYPE_PAGE;
-			WRITE_ONCE(table[idx], entry);
-			start_ipa += mmu->page_size;
-			pa += mmu->page_size;
+			while (start_ipa < end_ipa) {
+				idx = (start_ipa >> mmu->page_shift) & level_mask;
+				pte_val(entry) = (pa & ~(mmu->page_size - 1)) | flags | PTE_TYPE_PAGE;
+				WRITE_ONCE(table[idx], entry);
+				start_ipa += mmu->page_size;
+				pa += mmu->page_size;
+				if (idx == level_mask)
+					break;
+			}
 		}
 
 next_chunk:
@@ -381,7 +423,8 @@ static bool s2mmu_unmap_level(struct s2_mmu *mmu, pte_t *table,
 							start_ipa, end_ipa, mask);
 
 			if (child_empty) {
-				free_pages(next_table);
+				if (mmu->page_size >= PAGE_SIZE)
+					free_pages(next_table);
 				WRITE_ONCE(table[i], __pte(0));
 			} else {
 				table_empty = false;

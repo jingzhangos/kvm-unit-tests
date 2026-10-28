@@ -62,6 +62,12 @@ enum s1_granule {
 	 (0x08ULL << (6 * 8)) | /* MT_DEVICE_nGRE = 6 */ \
 	 (0xf0ULL << (7 * 8)))  /* MT_NORMAL_TAGGED = 7 */
 
+struct s1_page_pool {
+	void *page;
+	unsigned int order;
+	struct s1_page_pool *next;
+};
+
 struct s1_mmu {
 	struct s2_mmu *s2mmu;
 	unsigned long *pgd;
@@ -71,6 +77,9 @@ struct s1_mmu {
 	int root_level;
 	unsigned long page_size;
 	unsigned long block_size;
+	struct s1_page_pool *pool;
+	void *cur_pool_page;
+	unsigned int cur_pool_offset;
 };
 
 /* API */
