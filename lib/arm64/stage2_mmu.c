@@ -215,8 +215,9 @@ static pte_t *get_pte(struct s2_mmu *mmu, pte_t *table, unsigned long idx, bool 
 		order = __builtin_ctz(mmu->page_size / PAGE_SIZE);
 
 	next_table = (pte_t *)alloc_pages(order);
-	if (next_table)
-		memset(next_table, 0, mmu->page_size);
+	if (!next_table)
+		return NULL;
+	memset(next_table, 0, mmu->page_size);
 
 	pte_val(entry) = virt_to_phys(next_table) | PTE_TABLE_BIT | PTE_VALID;
 	WRITE_ONCE(table[idx], entry);

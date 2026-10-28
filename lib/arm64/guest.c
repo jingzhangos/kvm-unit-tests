@@ -178,9 +178,9 @@ struct guest *guest_create(int vmid, void (*guest_func)(void),
 void guest_destroy(struct guest *guest)
 {
 	s2mmu_disable(guest->s2mmu);
-	s2mmu_destroy(guest->s2mmu);
 	if (guest->s1mmu)
 		s1mmu_destroy(guest->s1mmu);
+	s2mmu_destroy(guest->s2mmu);
 	if (guest->guest_context)
 		free_page(guest->guest_context);
 	free(guest);

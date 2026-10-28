@@ -263,6 +263,9 @@ static void map_s2_region(struct s2_mmu *s2mmu, unsigned long ipa,
 	unsigned long *pages = NULL;
 	unsigned long offset;
 
+	if (chunk_size > SZ_2M)
+		chunk_size = SZ_2M;
+
 	while (chunk_size >= min_chunk) {
 		unsigned int order = get_order(chunk_size >> PAGE_SHIFT);
 
