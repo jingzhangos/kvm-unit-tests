@@ -1,5 +1,5 @@
 /*
- * ARM64 Stage-2 MMU Demand Paging Test
+ * ARM64 Nested Virtualization Memory Test (nv-memtest)
  *
  * This test validates two-stage (Stage-1 + Stage-2) MMU translation and
  * Stage-2 data abort handling by purposefully accessing unmapped Stage-2
@@ -25,11 +25,11 @@
  *                                  mode=skip)
  *
  * Usage examples:
- *   ./arm/run arm/stage2-mmu-test.flat
- *   ./arm/run arm/stage2-mmu-test.flat -append "s1=4k s2=4k size=2m mode=seq"
- *   ./arm/run arm/stage2-mmu-test.flat -append "s1=16k s2=2m size=3g mode=skip skip=16"
- *   ./arm/run arm/stage2-mmu-test.flat -append "s1=64k s2=2m size=5g mode=rand"
- *   ./arm/run arm/stage2-mmu-test.flat -append "s1=1g s2=1g size=8g skip=64"
+ *   ./arm/run arm/nv-memtest.flat
+ *   ./arm/run arm/nv-memtest.flat -append "s1=4k s2=4k size=2m mode=seq"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=16k s2=2m size=3g mode=skip skip=16"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=64k s2=2m size=5g mode=rand"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=1g s2=1g size=8g skip=64"
  *
  * Copyright (C) 2026 Google LLC.
  * Author: Jing Zhang <jingzhangos@google.com>
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
 	unsigned long code_va_base, code_pa_base, data_base, min_map_size;
 	int i;
 
-	report_prefix_push("stage2-mmu");
+	report_prefix_push("nv-memtest");
 
 	for (i = 1; i < argc; i++) {
 		if (!strncmp(argv[i], "s1=", 3)) {
