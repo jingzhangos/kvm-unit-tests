@@ -1,9 +1,35 @@
 /*
  * ARM64 Stage-2 MMU Demand Paging Test
  *
- * This test validates stage-2 data abort handling by purposefully
- * accessing unmapped memory in the guest and verifying that the
- * host correctly handles the fault by mapping the page.
+ * This test validates two-stage (Stage-1 + Stage-2) MMU translation and
+ * Stage-2 data abort handling by purposefully accessing unmapped Stage-2
+ * memory in the guest, mapping the region on demand in the host fault
+ * handler, and verifying the mapped guest memory.
+ *
+ * Parameters (all optional):
+ *   s1=<4k|16k|64k|2m|1g>          Stage-1 page/block size (default: 4k)
+ *   s2=<4k|16k|64k|2m|1g>          Stage-2 page/block size (default: 4k)
+ *   size=<N><k|m|g>                Total mapping size up to 8g (default: 4k;
+ *                                  also accepts map_size=<N><k|m|g>, rounded
+ *                                  up to the largest of s1 and s2 sizes)
+ *   mode=<seq|skip|rand>           Memory verification mode (default: seq;
+ *                                  also accepts type= or verify=):
+ *                                    seq  - sequentially write/read/compare
+ *                                           every word across the mapped range
+ *                                    skip - sequentially write/read/compare
+ *                                           every N pages across the range
+ *                                    rand - randomly write/read/compare across
+ *                                           the mapped range
+ *   skip=<N>                       Page stride for skip mode (default: 1;
+ *                                  also accepts stride=<N> and implies
+ *                                  mode=skip)
+ *
+ * Usage examples:
+ *   ./arm/run arm/stage2-mmu-test.flat
+ *   ./arm/run arm/stage2-mmu-test.flat -append "s1=4k s2=4k size=2m mode=seq"
+ *   ./arm/run arm/stage2-mmu-test.flat -append "s1=16k s2=2m size=3g mode=skip skip=16"
+ *   ./arm/run arm/stage2-mmu-test.flat -append "s1=64k s2=2m size=5g mode=rand"
+ *   ./arm/run arm/stage2-mmu-test.flat -append "s1=1g s2=1g size=8g skip=64"
  *
  * Copyright (C) 2026 Google LLC.
  * Author: Jing Zhang <jingzhangos@google.com>
