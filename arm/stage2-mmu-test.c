@@ -15,6 +15,7 @@
 #include <asm/io.h>
 #include <asm/smp.h>
 #include <asm/guest.h>
+#include <asm/stage1_mmu.h>
 #include <asm/stage2_mmu.h>
 
 #define TEST_PAGE_IPA		0x40000000UL
@@ -23,10 +24,12 @@
 
 static volatile bool handled = false;
 
-static void guest_code(void)
+static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 {
 	volatile unsigned long *test_va = (void *)TEST_PAGE_IPA;
 	volatile unsigned long *fault_va = (void *)FAULT_ADDR_IPA;
+
+	s1mmu_enable(s1_pgd_pa, granule);
 
 	*fault_va = *test_va;
 
@@ -73,15 +76,14 @@ int main(int argc, char **argv)
 
 	report_prefix_push("stage2-mmu");
 
-	guest = guest_create(smp_processor_id(), guest_code, S2_PAGE_4K, S1_GRANULE_4K);
+	guest = guest_create(smp_processor_id(), (void *)guest_code, S2_PAGE_4K, S1_GRANULE_4K);
 	if (!guest) {
 		report(false, "Failed to create guest");
 		return report_summary();
 	}
 
 
-	/* Map host code: IPA(VA) -> PA */
-	/* We use the host VA as the Guest IPA because guest stage 1 is disabled. */
+	/* Map host code: VA -> IPA -> PA */
 	code_va_base = (unsigned long)guest_code;
 	code_pa_base = virt_to_phys((void *)guest_code);
 
@@ -89,15 +91,21 @@ int main(int argc, char **argv)
 	code_va_base = code_va_base & ~(SZ_2M - 1);
 	code_pa_base = code_pa_base & ~(SZ_2M - 1);
 	s2mmu_map(guest->s2mmu, code_va_base, code_pa_base, SZ_2M, S2_MAP_RW);
+	s1mmu_map(guest->s1mmu, code_va_base, code_pa_base, SZ_2M, S1_MAP_RW);
 
 	/* Identity map the shared variable */
 	data_base = virt_to_phys((void *)&handled) & PAGE_MASK;
 	s2mmu_map(guest->s2mmu, data_base, data_base, PAGE_SIZE, S2_MAP_RW);
+	s1mmu_map(guest->s1mmu, data_base, data_base, PAGE_SIZE, S1_MAP_RW);
 
 	/* Map test data page */
 	test_page = alloc_page();
 	*test_page = TEST_DATA;
 	s2mmu_map(guest->s2mmu, TEST_PAGE_IPA, virt_to_phys(test_page), PAGE_SIZE, S2_MAP_RW);
+	s1mmu_map(guest->s1mmu, TEST_PAGE_IPA, TEST_PAGE_IPA, PAGE_SIZE, S1_MAP_RW);
+
+	/* Map fault address in Stage 1 so the access faults at Stage 2 */
+	s1mmu_map(guest->s1mmu, FAULT_ADDR_IPA, FAULT_ADDR_IPA, PAGE_SIZE, S1_MAP_RW);
 
 	guest_install_handler(guest, ELx_LOW_SYNC_64, guest_exception_handler);
 
