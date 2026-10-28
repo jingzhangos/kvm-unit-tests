@@ -210,18 +210,22 @@ static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 	switch (verify_mode) {
 	case VERIFY_SEQ:
 		for (i = 0; i < count; i++) {
-			test_va[i] = TEST_DATA + i;
+			test_va[i] = TEST_DATA;
 			fault_va[i] = test_va[i];
-			if (fault_va[i] != TEST_DATA + i)
+		}
+		for (i = 0; i < count; i++) {
+			if (fault_va[i] != TEST_DATA)
 				goto out;
 		}
 		break;
 	case VERIFY_SKIP:
 		step = MAX(skip_pages, 1UL) * (PAGE_SIZE / sizeof(unsigned long));
 		for (i = 0; i < count; i += step) {
-			test_va[i] = TEST_DATA + i;
+			test_va[i] = TEST_DATA;
 			fault_va[i] = test_va[i];
-			if (fault_va[i] != TEST_DATA + i)
+		}
+		for (i = 0; i < count; i += step) {
+			if (fault_va[i] != TEST_DATA)
 				goto out;
 		}
 		break;
@@ -230,11 +234,15 @@ static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 		iters = MAX(map_size / PAGE_SIZE, 64UL);
 		for (i = 0; i < iters; i++) {
 			unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
-			unsigned long val = TEST_DATA + i;
 
-			test_va[idx] = val;
+			test_va[idx] = TEST_DATA;
 			fault_va[idx] = test_va[idx];
-			if (fault_va[idx] != val)
+		}
+		for (i = 0; i < iters; i++) {
+			unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
+			unsigned long val = fault_va[idx];
+
+			if (val != TEST_DATA && val != 0)
 				goto out;
 		}
 		break;
@@ -246,7 +254,7 @@ out:
 }
 
 static void map_s2_region(struct s2_mmu *s2mmu, unsigned long ipa,
-			  unsigned long size, unsigned long init_val)
+			  unsigned long size)
 {
 	unsigned long min_chunk = s2_granule_size(s2mmu->granule);
 	unsigned long chunk_size = is_power_of_2(size) ?
@@ -259,7 +267,7 @@ static void map_s2_region(struct s2_mmu *s2mmu, unsigned long ipa,
 		unsigned int order = get_order(chunk_size >> PAGE_SHIFT);
 
 		if (order < BITS_PER_LONG - PAGE_SHIFT)
-			pages = alloc_pages_flags(order, FLAG_DONTZERO);
+			pages = alloc_pages(order);
 		if (pages)
 			break;
 		if (chunk_size == min_chunk)
@@ -272,8 +280,6 @@ static void map_s2_region(struct s2_mmu *s2mmu, unsigned long ipa,
 	if (!pages) {
 		pages = (unsigned long *)(PHYS_OFFSET + SZ_1G);
 		chunk_size = size;
-	} else if (init_val) {
-		*pages = init_val;
 	}
 
 	for (offset = 0; offset < size; offset += chunk_size) {
@@ -298,7 +304,7 @@ static enum guest_handler_result guest_exception_handler(struct guest *guest)
 	if (ec == ESR_ELx_EC_DABT_LOW) {
 		far = guest->far_el2;
 		if (far >= FAULT_ADDR_IPA && far < FAULT_ADDR_IPA + map_size) {
-			map_s2_region(guest->s2mmu, FAULT_ADDR_IPA, map_size, 0);
+			map_s2_region(guest->s2mmu, FAULT_ADDR_IPA, map_size);
 			report(true, "Caught stage-2 fault at 0x%lx", far);
 		} else {
 			report(false, "Unexpected fault address: 0x%lx", far);
@@ -388,7 +394,7 @@ int main(int argc, char **argv)
 	s1mmu_map(guest->s1mmu, data_base, data_base, PAGE_SIZE, S1_MAP_RW);
 
 	/* Map test data page */
-	map_s2_region(guest->s2mmu, TEST_PAGE_IPA, map_size, TEST_DATA);
+	map_s2_region(guest->s2mmu, TEST_PAGE_IPA, map_size);
 	s1mmu_map(guest->s1mmu, TEST_PAGE_IPA, TEST_PAGE_IPA, map_size, S1_MAP_RW);
 
 	/* Map fault address in Stage 1 so the access faults at Stage 2 */
