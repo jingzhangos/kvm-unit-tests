@@ -91,7 +91,7 @@ int main(void)
 	smp_boot_secondary(1, vlpi_sender);
 	its_enable_defaults();
 
-	guest = guest_create(0, vlpi_receiver, S2_PAGE_4K);
+	guest = guest_create(0, vlpi_receiver, S2_PAGE_4K, S1_GRANULE_4K);
 
 	/* Map Shared Flag */
 	unsigned long flag_pa = virt_to_phys((void *)&irq_received);

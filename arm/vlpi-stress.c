@@ -179,7 +179,7 @@ static void receiver_guest_loop(void)
 	struct guest *guest;
 	unsigned long data_base;
 
-	guest = guest_create(smp_processor_id(), guest_receiver, S2_PAGE_4K);
+	guest = guest_create(smp_processor_id(), guest_receiver, S2_PAGE_4K, S1_GRANULE_4K);
 	if (!guest) {
 		report_fail("Receiver: failed to create guest");
 		return;
@@ -213,7 +213,7 @@ static void sender_guest_loop(void)
 	unsigned long far, ec, data_base;
 	int cpu = smp_processor_id();
 
-	guest = guest_create(cpu, guest_sender, S2_PAGE_4K);
+	guest = guest_create(cpu, guest_sender, S2_PAGE_4K, S1_GRANULE_4K);
 	if (!guest) {
 		report_fail("Sender: failed to create guest");
 		return;

@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 
 	report_prefix_push("stage2-mmu");
 
-	guest = guest_create(smp_processor_id(), guest_code, S2_PAGE_4K);
+	guest = guest_create(smp_processor_id(), guest_code, S2_PAGE_4K, S1_GRANULE_4K);
 	if (!guest) {
 		report(false, "Failed to create guest");
 		return report_summary();

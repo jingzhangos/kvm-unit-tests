@@ -111,7 +111,8 @@ static struct guest *__guest_create(struct s2_mmu *s2_ctx, struct s1_mmu *s1_ctx
 }
 
 
-struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule granule)
+struct guest *guest_create(int vmid, void (*guest_func)(void),
+			   enum s2_granule s2_granule, enum s1_granule s1_granule)
 {
 	unsigned long guest_pa, code_base, stack_pa;
 	unsigned long *stack_page;
@@ -119,11 +120,11 @@ struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule g
 	struct s2_mmu *ctx;
 	struct s1_mmu *s1mmu;
 
-	ctx = s2mmu_init(vmid, granule, true);
+	ctx = s2mmu_init(vmid, s2_granule, true);
 	if (!ctx)
 		return NULL;
 
-	s1mmu = s1mmu_init(ctx, S1_GRANULE_4K);
+	s1mmu = s1mmu_init(ctx, s1_granule);
 	if (!s1mmu) {
 		s2mmu_destroy(ctx);
 		return NULL;

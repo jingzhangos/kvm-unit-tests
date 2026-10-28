@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 	report_prefix_push("stage1-mmu");
 
 	/* Create guest with Stage 2 and Stage 1 configured */
-	guest = guest_create(smp_processor_id(), (void *)guest_code, S2_PAGE_4K);
+	guest = guest_create(smp_processor_id(), (void *)guest_code, S2_PAGE_4K, S1_GRANULE_4K);
 	if (!guest) {
 		report(false, "Failed to create guest");
 		return report_summary();

@@ -93,7 +93,8 @@ struct guest {
 };
 
 
-struct guest *guest_create(int vmid, void (*guest_func)(void), enum s2_granule granule);
+struct guest *guest_create(int vmid, void (*guest_func)(void),
+			   enum s2_granule s2_granule, enum s1_granule s1_granule);
 void guest_destroy(struct guest *guest);
 void guest_run(struct guest *guest);
 
