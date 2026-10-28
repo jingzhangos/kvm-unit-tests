@@ -35,6 +35,8 @@ struct s1_mmu *s1mmu_init(struct s2_mmu *s2mmu, enum s1_granule granule)
 
 	switch (granule) {
 	case S1_GRANULE_4K:
+	case S1_GRANULE_2M:
+	case S1_GRANULE_1G:
 		mmu->page_shift = 12;
 		mmu->level_shift = 9;
 		mmu->root_level = (VA_BITS > 39) ? 0 : 1;
@@ -42,7 +44,12 @@ struct s1_mmu *s1mmu_init(struct s2_mmu *s2mmu, enum s1_granule granule)
 	case S1_GRANULE_16K:
 		mmu->page_shift = 14;
 		mmu->level_shift = 11;
-		mmu->root_level = (VA_BITS > 36) ? 1 : 2;
+		if (VA_BITS > 47)
+			mmu->root_level = 0;
+		else if (VA_BITS > 36)
+			mmu->root_level = 1;
+		else
+			mmu->root_level = 2;
 		break;
 	case S1_GRANULE_64K:
 		mmu->page_shift = 16;
@@ -154,17 +161,35 @@ int s1mmu_map(struct s1_mmu *mmu, unsigned long va, unsigned long ipa,
 			unsigned long level_size = 1UL << level_shift;
 
 			/* Check for Block Mapping */
-			bool is_block_level = (level == 2) ||
-					      (mmu->granule == S1_GRANULE_4K && level == 1);
+			bool is_block_level = (mmu->granule == S1_GRANULE_2M && level == 2) ||
+					      (mmu->granule == S1_GRANULE_1G && level == 1);
 
 			if (is_block_level) {
 				if ((start_va & (level_size - 1)) == 0 &&
 				    (cur_ipa & (level_size - 1)) == 0 &&
 				    (start_va + level_size) <= end_va) {
+					if (s1_pte_valid(table[idx]) && s1_pte_is_table(table[idx])) {
+						unsigned long mask = GENMASK_ULL(47, mmu->page_shift);
+						unsigned long *old = (unsigned long *)phys_to_virt(table[idx] & mask);
+						s1mmu_free_tables(mmu, old, level + 1);
+					}
 					/* Map Block */
 					table[idx] = (cur_ipa & ~(level_size - 1)) | flags | S1_PTE_VALID;
 					start_va += level_size;
 					cur_ipa += level_size;
+					goto next_chunk;
+				}
+			}
+
+			if (s1_pte_valid(table[idx]) && !s1_pte_is_table(table[idx])) {
+				unsigned long mask = GENMASK_ULL(47, mmu->page_shift);
+				unsigned long block_ipa = (table[idx] & mask) & ~(level_size - 1);
+				unsigned long offset = start_va & (level_size - 1);
+				unsigned long chunk = MIN(end_va - start_va, level_size - offset);
+
+				if (block_ipa + offset == cur_ipa) {
+					start_va += chunk;
+					cur_ipa += chunk;
 					goto next_chunk;
 				}
 			}
@@ -245,6 +270,8 @@ void s1mmu_enable(unsigned long pgd_pa, enum s1_granule granule)
 
 	switch (granule) {
 	case S1_GRANULE_4K:
+	case S1_GRANULE_2M:
+	case S1_GRANULE_1G:
 		tcr |= (0UL << 14); /* TCR_TG0_4K */
 		break;
 	case S1_GRANULE_16K:

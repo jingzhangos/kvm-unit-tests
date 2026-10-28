@@ -18,6 +18,8 @@ enum s1_granule {
 	S1_GRANULE_4K,
 	S1_GRANULE_16K,
 	S1_GRANULE_64K,
+	S1_GRANULE_2M,
+	S1_GRANULE_1G,
 };
 
 
@@ -42,7 +44,13 @@ enum s1_granule {
 #define S1_MAP_RW		(S1_PTE_SHARED | S1_PTE_AF | ((unsigned long)S1_ATTR_NORMAL_INDEX << 2))
 #define S1_MAP_DEVICE		(S1_PTE_AF | ((unsigned long)S1_ATTR_DEVICE_INDEX << 2))
 
-#define S1_TCR_FLAGS		(TCR_TxSZ(48) | TCR_IRGN_WBWA | TCR_ORGN_WBWA | TCR_SHARED)
+#if VA_BITS > 40
+#define S1_TCR_IPS		(5UL << 32) /* 48-bit IPA */
+#else
+#define S1_TCR_IPS		(2UL << 32) /* 40-bit IPA */
+#endif
+
+#define S1_TCR_FLAGS		(TCR_TxSZ(48) | TCR_IRGN_WBWA | TCR_ORGN_WBWA | TCR_SHARED | S1_TCR_IPS)
 
 #define S1_MAIR_VAL \
 	((0x00ULL << (0 * 8)) | /* MT_DEVICE_nGnRnE = 0 */ \

@@ -43,6 +43,8 @@ struct s2_mmu *s2mmu_init(int vmid, enum s2_granule granule, bool allow_block_ma
 	/* Configure shifts based on granule */
 	switch (granule) {
 	case S2_PAGE_4K:
+	case S2_PAGE_2M:
+	case S2_PAGE_1G:
 		mmu->page_shift = 12;
 		mmu->level_shift = 9;
 		/*
@@ -138,6 +140,8 @@ void s2mmu_enable(struct s2_mmu *mmu)
 
 	switch (mmu->granule) {
 	case S2_PAGE_4K:
+	case S2_PAGE_2M:
+	case S2_PAGE_1G:
 		vtcr |= VTCR_TG0_4K;
 		/* SL0 Encodings for 4K: 0=L2, 1=L1, 2=L0 */
 		if (mmu->root_level == 0)
@@ -150,10 +154,13 @@ void s2mmu_enable(struct s2_mmu *mmu)
 	case S2_PAGE_16K:
 		vtcr |= VTCR_TG0_16K;
 		/* SL0 Encodings for 16K: 0=L3(Res), 1=L2, 2=L1, 3=L0(Res) */
-		if (mmu->root_level == 1)
+		if (mmu->root_level == 1) {
 			vtcr |= (2UL << 6); /* Start L1 */
-		else
+			if (VA_BITS > 47)
+				t0sz = 64 - 47;
+		} else {
 			vtcr |= (1UL << 6); /* Start L2 */
+		}
 		break;
 	case S2_PAGE_64K:
 		vtcr |= VTCR_TG0_64K;
@@ -245,13 +252,18 @@ void s2mmu_map(struct s2_mmu *mmu, unsigned long ipa, unsigned long pa,
 			 * 16K: L2 (32MB)
 			 * 64K: L2 (512MB)
 			 */
-			is_block_level = (level == 2) ||
-				(mmu->granule == S2_PAGE_4K && level == 1);
+			is_block_level = (mmu->granule == S2_PAGE_2M && level == 2) ||
+				(mmu->granule == S2_PAGE_1G && level == 1);
 
 			if (mmu->allow_block_mappings && is_block_level) {
 				if ((start_ipa & (level_size - 1)) == 0 &&
 				    (pa & (level_size - 1)) == 0 &&
 				    (start_ipa + level_size) <= end_ipa) {
+					if (pte_valid(table[idx]) && pte_is_table(table[idx])) {
+						unsigned long mask = s2mmu_get_addr_mask(mmu);
+						pte_t *old = (pte_t *)phys_to_virt(pte_val(table[idx]) & mask);
+						s2mmu_free_tables(mmu, old, level + 1);
+					}
 					/* Map Block */
 					pte_val(entry) = (pa & ~(level_size - 1)) |
 							 flags | PTE_VALID;
@@ -259,6 +271,19 @@ void s2mmu_map(struct s2_mmu *mmu, unsigned long ipa, unsigned long pa,
 					start_ipa += level_size;
 					pa += level_size;
 					goto next_chunk; /* Continue outer loop */
+				}
+			}
+
+			if (pte_valid(table[idx]) && !pte_is_table(table[idx])) {
+				unsigned long mask = s2mmu_get_addr_mask(mmu);
+				unsigned long block_pa = (pte_val(table[idx]) & mask) & ~(level_size - 1);
+				unsigned long offset = start_ipa & (level_size - 1);
+				unsigned long chunk = MIN(end_ipa - start_ipa, level_size - offset);
+
+				if (block_pa + offset == pa) {
+					start_ipa += chunk;
+					pa += chunk;
+					goto next_chunk;
 				}
 			}
 

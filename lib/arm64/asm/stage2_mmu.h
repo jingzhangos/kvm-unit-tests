@@ -31,6 +31,8 @@ enum s2_granule {
 	S2_PAGE_4K,
 	S2_PAGE_16K,
 	S2_PAGE_64K,
+	S2_PAGE_2M,
+	S2_PAGE_1G,
 };
 
 /* Main Stage-2 MMU Structure */
