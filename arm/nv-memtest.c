@@ -4,7 +4,8 @@
  * This test validates two-stage (Stage-1 + Stage-2) MMU translation and
  * Stage-2 data abort handling by purposefully accessing unmapped Stage-2
  * memory in the guest, mapping the region on demand in the host fault
- * handler, and verifying the mapped guest memory.
+ * handler, and verifying the mapped guest memory with sequential, stride,
+ * and random memory tests.
  *
  * Parameters (all optional):
  *   s1=<4k|16k|64k|2m|1g>          Stage-1 page/block size (default: 4k)
@@ -12,24 +13,13 @@
  *   size=<N><k|m|g>                Total mapping size up to 8g (default: 4k;
  *                                  also accepts map_size=<N><k|m|g>, rounded
  *                                  up to the largest of s1 and s2 sizes)
- *   mode=<seq|skip|rand>           Memory verification mode (default: seq;
- *                                  also accepts type= or verify=):
- *                                    seq  - sequentially write/read/compare
- *                                           every word across the mapped range
- *                                    skip - sequentially write/read/compare
- *                                           every N pages across the range
- *                                    rand - randomly write/read/compare across
- *                                           the mapped range
- *   skip=<N>                       Page stride for skip mode (default: 1;
- *                                  also accepts stride=<N> and implies
- *                                  mode=skip)
  *
  * Usage examples:
  *   ./arm/run arm/nv-memtest.flat
- *   ./arm/run arm/nv-memtest.flat -append "s1=4k s2=4k size=2m mode=seq"
- *   ./arm/run arm/nv-memtest.flat -append "s1=16k s2=2m size=3g mode=skip skip=16"
- *   ./arm/run arm/nv-memtest.flat -append "s1=64k s2=2m size=5g mode=rand"
- *   ./arm/run arm/nv-memtest.flat -append "s1=1g s2=1g size=8g skip=64"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=4k s2=4k size=2m"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=16k s2=2m size=3g"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=64k s2=2m size=5g"
+ *   ./arm/run arm/nv-memtest.flat -append "s1=1g s2=1g size=8g"
  *
  * Copyright (C) 2026 Google LLC.
  * Author: Jing Zhang <jingzhangos@google.com>
@@ -49,19 +39,14 @@
 
 #define TEST_PAGE_IPA		0x200000000UL
 #define FAULT_ADDR_IPA		0x400000000UL
-#define TEST_DATA		0xBEEFCAFEUL
+#define TEST_DATA_SEQ		0xBEEFCAFEUL
+#define TEST_DATA_STRIDE	0xFEEDC0DEUL
+#define TEST_DATA_RAND		0xCAFEBABEUL
+#define TEST_STRIDE_PAGES	16UL
 #define MAX_MAP_SIZE		(8UL * SZ_1G)
-
-enum verify_mode {
-	VERIFY_SEQ,
-	VERIFY_SKIP,
-	VERIFY_RANDOM,
-};
 
 static volatile bool handled = false;
 static unsigned long map_size = SZ_4K;
-static enum verify_mode verify_mode = VERIFY_SEQ;
-static unsigned long skip_pages = 1;
 
 static unsigned long parse_size(const char *str)
 {
@@ -169,24 +154,6 @@ static unsigned long s2_granule_size(enum s2_granule granule)
 	}
 }
 
-static bool parse_verify_mode(const char *str, enum verify_mode *mode)
-{
-	if (!strcasecmp(str, "seq") || !strcasecmp(str, "sequential")) {
-		*mode = VERIFY_SEQ;
-		return true;
-	}
-	if (!strcasecmp(str, "skip") || !strcasecmp(str, "stride") ||
-	    !strcasecmp(str, "page")) {
-		*mode = VERIFY_SKIP;
-		return true;
-	}
-	if (!strcasecmp(str, "rand") || !strcasecmp(str, "random")) {
-		*mode = VERIFY_RANDOM;
-		return true;
-	}
-	return false;
-}
-
 static unsigned long next_rand(unsigned long *state)
 {
 	unsigned long x = *state;
@@ -207,46 +174,44 @@ static void guest_code(unsigned long s1_pgd_pa, enum s1_granule granule)
 
 	s1mmu_enable(s1_pgd_pa, granule);
 
-	switch (verify_mode) {
-	case VERIFY_SEQ:
-		iters = MIN(count, 65536UL);
-		for (i = 0; i < iters; i++) {
-			test_va[i] = TEST_DATA;
-			fault_va[i] = test_va[i];
-		}
-		for (i = 0; i < iters; i++) {
-			if (fault_va[i] != TEST_DATA && fault_va[i] != 0)
-				goto out;
-		}
-		break;
-	case VERIFY_SKIP:
-		step = MAX(skip_pages, 1UL) * (PAGE_SIZE / sizeof(unsigned long));
-		for (i = 0; i < count; i += step) {
-			test_va[i] = TEST_DATA;
-			fault_va[i] = test_va[i];
-		}
-		for (i = 0; i < count; i += step) {
-			if (fault_va[i] != TEST_DATA && fault_va[i] != 0)
-				goto out;
-		}
-		break;
-	case VERIFY_RANDOM:
-		seed = 0x123456789ABCDEF0UL;
-		iters = MIN(MAX(map_size / PAGE_SIZE, 64UL), 4096UL);
-		for (i = 0; i < iters; i++) {
-			unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
+	/* 1. Sequential memory test */
+	iters = MIN(count, 65536UL);
+	for (i = 0; i < iters; i++) {
+		test_va[i] = TEST_DATA_SEQ;
+		fault_va[i] = test_va[i];
+	}
+	for (i = 0; i < iters; i++) {
+		if (fault_va[i] != TEST_DATA_SEQ && fault_va[i] != 0)
+			goto out;
+	}
 
-			test_va[idx] = TEST_DATA;
-			fault_va[idx] = test_va[idx];
-		}
-		for (i = 0; i < iters; i++) {
-			unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
-			unsigned long val = fault_va[idx];
+	/* 2. Stride memory test */
+	step = TEST_STRIDE_PAGES * (PAGE_SIZE / sizeof(unsigned long));
+	for (i = 0; i < count; i += step) {
+		test_va[i] = TEST_DATA_STRIDE;
+		fault_va[i] = test_va[i];
+	}
+	for (i = 0; i < count; i += step) {
+		if (fault_va[i] != TEST_DATA_STRIDE && fault_va[i] != 0)
+			goto out;
+	}
 
-			if (val != TEST_DATA && val != 0)
-				goto out;
-		}
-		break;
+	/* 3. Random memory test */
+	seed = 0x123456789ABCDEF0UL;
+	iters = MIN(MAX(map_size / PAGE_SIZE, 64UL), 4096UL);
+	for (i = 0; i < iters; i++) {
+		unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
+
+		test_va[idx] = TEST_DATA_RAND;
+		fault_va[idx] = test_va[idx];
+	}
+	seed = 0x123456789ABCDEF0UL;
+	for (i = 0; i < iters; i++) {
+		unsigned long idx = (i == 0) ? 0 : (next_rand(&seed) % count);
+		unsigned long val = fault_va[idx];
+
+		if (val != TEST_DATA_RAND && val != 0)
+			goto out;
 	}
 
 	handled = true;
@@ -349,26 +314,6 @@ int main(int argc, char **argv)
 			map_size = parse_size(argv[i] + 9);
 			if (!map_size)
 				report_abort("Invalid mapping size: %s", argv[i] + 9);
-		} else if (!strncmp(argv[i], "mode=", 5) || !strncmp(argv[i], "type=", 5)) {
-			if (!parse_verify_mode(argv[i] + 5, &verify_mode))
-				report_abort("Invalid verification mode: %s", argv[i] + 5);
-		} else if (!strncmp(argv[i], "verify=", 7)) {
-			if (!parse_verify_mode(argv[i] + 7, &verify_mode))
-				report_abort("Invalid verification mode: %s", argv[i] + 7);
-		} else if (!strncmp(argv[i], "skip=", 5)) {
-			char *end;
-
-			skip_pages = strtoul(argv[i] + 5, &end, 10);
-			if (!skip_pages || *end != '\0')
-				report_abort("Invalid skip pages: %s", argv[i] + 5);
-			verify_mode = VERIFY_SKIP;
-		} else if (!strncmp(argv[i], "stride=", 7)) {
-			char *end;
-
-			skip_pages = strtoul(argv[i] + 7, &end, 10);
-			if (!skip_pages || *end != '\0')
-				report_abort("Invalid stride pages: %s", argv[i] + 7);
-			verify_mode = VERIFY_SKIP;
 		} else {
 			report_abort("Unknown parameter: %s", argv[i]);
 		}
